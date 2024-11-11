@@ -2,11 +2,13 @@ import express from "express";
 import multer from "multer";
 import OpenAI from "openai";
 import "dotenv/config";
+import cors from "cors";
 
 const app = express();
 const PORT = process.env.PORT || 3010;
 
 app.use(express.urlencoded({ extended: true }));
+app.use(cors());
 const storage = multer.memoryStorage();
 const upload = multer({ storage: storage });
 const openai = new OpenAI({
