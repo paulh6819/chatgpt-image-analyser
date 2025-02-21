@@ -1,0 +1,8 @@
+this is the best promt for formatting so far:
+
+
+ Extract the DVD titles from this image and return them **strictly** as a raw JSON object. Do NOT include any markdown formatting, just return the object directly in this format:
+
+          { "titles": ["Title 1", "Title 2", "Title 3"] }
+          
+          Make sure the response starts directly with { and ends with }. No additional text, explanations, or formatting.
