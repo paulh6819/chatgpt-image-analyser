@@ -23,101 +23,171 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false },
 });
 
-const dvdModeToggleSwitch = true;
+// const dvdModeToggleSwitch = true;
 
 app.post("/AIAnalysisEndPoint", upload.array("images"), async (req, res) => {
-  //this is the default test GPTapiMode
-  if (!dvdModeToggleSwitch) {
-    //this is necessary because the prompt comes in array of all the promts, can be a source for bugs so I will need to dig in to this
-    const promptTextArray = req.body.prompt;
-    let promtForGPT = extractPrompt(promptTextArray);
-    console.log("this is the first console.log", promtForGPT);
+  const queryType = req.query.media;
 
-    if (!req.files || req.files.length === 0) {
-      return res.status(400).send("No images uploaded.");
-    }
+  console.log("this is the query type", queryType);
 
-    const promises = req.files.map((file) =>
-      informationBackFromChatGPTAboutPhoto(file.buffer, promtForGPT)
-    );
+  //this needs to be refactored for anything thats dealing with DVD extraciton
+  try {
+    if (queryType === "DVD") {
+      console.log("DVD mode is enabled! Querying database...");
 
-    Promise.allSettled(promises).then((results) => {
-      results.forEach((result, index) => {
-        if (result.status === "fulfilled") {
-          console.log(`Image ${index + 1}: Success`, result.value);
-        } else {
-          console.log(`Image ${index + 1}: Failed`, result.reason);
+      //this is necessary because the prompt comes in array of all the promts, can be a source for bugs so I will need to dig in to this
+      const promptTextArray = req.body.prompt;
+      let promtForGPT = extractPrompt(promptTextArray);
+      console.log("this is the first console.log", promtForGPT);
+
+      if (!req.files || req.files.length === 0) {
+        return res.status(400).send("No images uploaded.");
+      }
+
+      const promises = req.files.map(async (file) => {
+        try {
+          const gptResult = await informationBackFromChatGPTAboutPhoto(
+            file.buffer,
+            promtForGPT
+          );
+          const rawContent = gptResult.message.content; // Get the JSON string
+          const titlesInJSONFromChatGPT = JSON.parse(rawContent); // Parse it into an object
+          const titlesInPlainEnglishFormat = titlesInJSONFromChatGPT.titles.map(
+            (title) => title
+          );
+
+          console.log(
+            "These are the extracted titles:",
+            titlesInPlainEnglishFormat
+          );
+
+          // Run PostgreSQL fuzzy logic for each title and collect results
+          const fuzzyLogicPromises = titlesInPlainEnglishFormat.map((title) =>
+            useFuzzyLogicToSearchRailWaysDatabaseForMatch_DVD(title)
+          );
+
+          const fuzzyResults = await Promise.all(fuzzyLogicPromises);
+
+          return {
+            extractedTitles: titlesInPlainEnglishFormat,
+            fuzzyMatches: fuzzyResults,
+          };
+        } catch (error) {
+          console.error("Error processing image:", error);
+          return { error: "Failed to process image." };
         }
       });
-      // Filter out successful responses and send them back to the client
-      const successfulResults = results
-        .filter((result) => result.status === "fulfilled")
-        .map((result) => result.value);
-      res.json(successfulResults);
-      console.log("this is the successful results", successfulResults);
-    });
-  }
+      Promise.allSettled(promises).then((results) => {
+        const successfulResults = results
+          .filter((result) => result.status === "fulfilled")
+          .map((result) => result.value);
 
-  if (dvdModeToggleSwitch) {
-    console.log("DVD mode is enabled! Querying database...");
-
-    //this is necessary because the prompt comes in array of all the promts, can be a source for bugs so I will need to dig in to this
-    const promptTextArray = req.body.prompt;
-    let promtForGPT = extractPrompt(promptTextArray);
-    console.log("this is the first console.log", promtForGPT);
-
-    if (!req.files || req.files.length === 0) {
-      return res.status(400).send("No images uploaded.");
-    }
-
-    const promises = req.files.map(async (file) => {
-      try {
-        const gptResult = await informationBackFromChatGPTAboutPhoto(
-          file.buffer,
-          promtForGPT
-        );
-        const rawContent = gptResult.message.content; // Get the JSON string
-        const titlesInJSONFromChatGPT = JSON.parse(rawContent); // Parse it into an object
-        const titlesInPlainEnglishFormat = titlesInJSONFromChatGPT.titles.map(
-          (title) => title
-        );
-
+        // console.log("Final result going to UI:", successfulResults);
         console.log(
-          "These are the extracted titles:",
-          titlesInPlainEnglishFormat
+          "Final result going to UI:",
+          JSON.stringify(successfulResults, null, 2)
         );
 
-        // Run PostgreSQL fuzzy logic for each title and collect results
-        const fuzzyLogicPromises = titlesInPlainEnglishFormat.map((title) =>
-          useFuzzyLogicToSearchRailWaysDatabaseForMatch(title)
-        );
+        res.json({ results: successfulResults });
 
-        const fuzzyResults = await Promise.all(fuzzyLogicPromises);
+        console.log("this is the successful results", successfulResults);
+      });
+    } else if (queryType === "VHS") {
+      //this is where the logic for vhs query's go
+      console.log("vhs mode is enabled! Querying database...");
 
-        return {
-          extractedTitles: titlesInPlainEnglishFormat,
-          fuzzyMatches: fuzzyResults,
-        };
-      } catch (error) {
-        console.error("Error processing image:", error);
-        return { error: "Failed to process image." };
+      //this is necessary because the prompt comes in array of all the promts, can be a source for bugs so I will need to dig in to this
+      const promptTextArray = req.body.prompt;
+      let promtForGPT = extractPrompt(promptTextArray);
+      console.log("this is the first console.log", promtForGPT);
+
+      if (!req.files || req.files.length === 0) {
+        return res.status(400).send("No images uploaded.");
       }
-    });
-    Promise.allSettled(promises).then((results) => {
-      const successfulResults = results
-        .filter((result) => result.status === "fulfilled")
-        .map((result) => result.value);
 
-      // console.log("Final result going to UI:", successfulResults);
-      console.log(
-        "Final result going to UI:",
-        JSON.stringify(successfulResults, null, 2)
+      const promises = req.files.map(async (file) => {
+        try {
+          const gptResult = await informationBackFromChatGPTAboutPhoto(
+            file.buffer,
+            promtForGPT
+          );
+          const rawContent = gptResult.message.content; // Get the JSON string
+          const titlesInJSONFromChatGPT = JSON.parse(rawContent); // Parse it into an object
+          const titlesInPlainEnglishFormat = titlesInJSONFromChatGPT.titles.map(
+            (title) => title
+          );
+
+          console.log(
+            "These are the extracted titles:",
+            titlesInPlainEnglishFormat
+          );
+
+          // Run PostgreSQL fuzzy logic for each title and collect results
+          const fuzzyLogicPromises = titlesInPlainEnglishFormat.map((title) =>
+            useFuzzyLogicToSearchRailWaysDatabaseForMatch_VHS(title)
+          );
+
+          const fuzzyResults = await Promise.all(fuzzyLogicPromises);
+
+          return {
+            extractedTitles: titlesInPlainEnglishFormat,
+            fuzzyMatches: fuzzyResults,
+          };
+        } catch (error) {
+          console.error("Error processing image:", error);
+          return { error: "Failed to process image." };
+        }
+      });
+      Promise.allSettled(promises).then((results) => {
+        const successfulResults = results
+          .filter((result) => result.status === "fulfilled")
+          .map((result) => result.value);
+
+        // console.log("Final result going to UI:", successfulResults);
+        console.log(
+          "Final resultof vhs going to UI:",
+          JSON.stringify(successfulResults, null, 2)
+        );
+
+        res.json({ results: successfulResults });
+
+        console.log("this is the successful results", successfulResults);
+      });
+    } else {
+      //this is necessary because the prompt comes in array of all the promts, can be a source for bugs so I will need to dig in to this
+      const promptTextArray = req.body.prompt;
+      let promtForGPT = extractPrompt(promptTextArray);
+      console.log("this is the first console.log", promtForGPT);
+
+      if (!req.files || req.files.length === 0) {
+        return res.status(400).send("No images uploaded.");
+      }
+
+      const promises = req.files.map((file) =>
+        informationBackFromChatGPTAboutPhoto(file.buffer, promtForGPT)
       );
 
-      res.json({ results: successfulResults });
-
-      console.log("this is the successful results", successfulResults);
-    });
+      Promise.allSettled(promises).then((results) => {
+        results.forEach((result, index) => {
+          if (result.status === "fulfilled") {
+            console.log(`Image ${index + 1}: Success`, result.value);
+          } else {
+            console.log(`Image ${index + 1}: Failed`, result.reason);
+          }
+        });
+        // Filter out successful responses and send them back to the client
+        const successfulResults = results
+          .filter((result) => result.status === "fulfilled")
+          .map((result) => result.value);
+        res.json(successfulResults);
+        console.log("this is the successful results", successfulResults);
+      });
+    }
+  } catch (error) {
+    console.log(
+      "this is a try catch error, hasnt even entered the queary type if statements:",
+      error
+    );
   }
 });
 
@@ -166,7 +236,7 @@ function extractPrompt(itemToTest) {
   }
 }
 
-async function useFuzzyLogicToSearchRailWaysDatabaseForMatch(title) {
+async function useFuzzyLogicToSearchRailWaysDatabaseForMatch_DVD(title) {
   let returnedMostLikelyTitle = null;
   let returnedPriceOfLikelyTitle = null;
   let valueGoingToTheUI = `No close matches found for: ${title}`;
@@ -176,6 +246,52 @@ async function useFuzzyLogicToSearchRailWaysDatabaseForMatch(title) {
     const result = await pool.query(
       `SELECT title, price
        FROM dvds
+       WHERE similarity(title, $1) > 0.4
+       ORDER BY similarity(title, $1) DESC
+       LIMIT 3`,
+      [title] // Pass the user-provided title safely
+    );
+
+    if (result.rows.length > 0) {
+      likelyMatches = result.rows.map((row) => ({
+        title: row.title,
+        price: row.price,
+      }));
+
+      console.log(`For title "${title}", top matches:`, likelyMatches);
+      valueGoingToTheUI = `For title "${title}", top matches:, ${likelyMatches}`;
+
+      // Convert the array of matches into a readable string for the UI
+      valueGoingToTheUI =
+        `For title "${title}", top matches:\n` +
+        likelyMatches
+          .map(
+            (match, index) =>
+              `${index + 1}. ${match.title} (Price: ${match.price})`
+          )
+          .join("\n"); // This properly formats the array into a string
+
+      console.log("this is the value going to the UI", valueGoingToTheUI);
+    } else {
+      console.log("No close matches found for:", title);
+    }
+  } catch (error) {
+    console.error("Database query failed:", error);
+  }
+
+  return valueGoingToTheUI;
+}
+
+async function useFuzzyLogicToSearchRailWaysDatabaseForMatch_VHS(title) {
+  let returnedMostLikelyTitle = null;
+  let returnedPriceOfLikelyTitle = null;
+  let valueGoingToTheUI = `No close matches found for: ${title}`;
+  let likelyMatches = [];
+
+  try {
+    const result = await pool.query(
+      `SELECT title, price
+       FROM vhs_tapes
        WHERE similarity(title, $1) > 0.4
        ORDER BY similarity(title, $1) DESC
        LIMIT 3`,
