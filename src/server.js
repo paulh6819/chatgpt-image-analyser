@@ -258,10 +258,34 @@ async function useFuzzyLogicToSearchRailWaysDatabaseForMatch_DVD(title) {
         price: row.price,
       }));
 
-      console.log(`For title "${title}", top matches:`, likelyMatches);
-      valueGoingToTheUI = `For title "${title}", top matches:, ${likelyMatches}`;
+      // console.log(
+      //   `For title (duplicate) "${title}", top matches:`,
+      //   likelyMatches
+      // );
+      // console.log(
+      //   "\n",
+      //   `testing first  top matche title fixing:`,
+      //   removeDuplicateTitle(likelyMatches[0].title)
+      // );
+      console.log(
+        "\n",
+        `testing first  top matche WITHOUT the fixing:`,
+        likelyMatches[0].title
+      );
 
-      // Convert the array of matches into a readable string for the UI
+      //valueGoingToTheUI = `For title "${title}",--------> top matches:, ${likelyMatches}`;
+
+      // Clean up all titles in likelyMatches BEFORE using them in .map()
+      likelyMatches.forEach((match) => {
+        match.title = removeDuplicateTitle(match.title);
+      });
+
+      console.log(
+        "her is the second title to remove",
+        removeDuplicateTitle(likelyMatches[1].title)
+      );
+
+      // Convert the cleaned array of matches into a readable string for the UI
       valueGoingToTheUI =
         `For title "${title}", top matches:\n` +
         likelyMatches
@@ -269,9 +293,9 @@ async function useFuzzyLogicToSearchRailWaysDatabaseForMatch_DVD(title) {
             (match, index) =>
               `${index + 1}. ${match.title} (Price: ${match.price})`
           )
-          .join("\n"); // This properly formats the array into a string
+          .join("\n");
 
-      console.log("this is the value going to the UI", valueGoingToTheUI);
+      console.log("✅ Cleaned Titles Sent to UI:\n", valueGoingToTheUI);
     } else {
       console.log("No close matches found for:", title);
     }
@@ -326,4 +350,16 @@ async function useFuzzyLogicToSearchRailWaysDatabaseForMatch_VHS(title) {
   }
 
   return valueGoingToTheUI;
+}
+function removeDuplicateTitle(title) {
+  if (!title) return ""; // Handle empty values safely
+
+  // Find the longest repeated sequence of words in the title
+  const match = title.match(/^(.*?)\1+$/);
+
+  if (match) {
+    return match[1].trim(); // Return only the first occurrence of the repeated text
+  }
+
+  return title; // If no duplication detected, return as-is
 }
