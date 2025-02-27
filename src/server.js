@@ -352,6 +352,13 @@ async function useFuzzyLogicToSearchRailWaysDatabaseForMatch_VHS(title) {
   return valueGoingToTheUI;
 }
 function removeDuplicateTitle(title) {
+  const words = title.split(" ");
+  const mid = Math.floor(words.length / 2);
+
+  if (words.slice(0, mid).join(" ") === words.slice(mid).join(" ")) {
+    return words.slice(0, mid).join(" ");
+  }
+
   if (!title) return ""; // Handle empty values safely
 
   // Find the longest repeated sequence of words in the title
