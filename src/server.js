@@ -43,8 +43,9 @@ app.post("/AIAnalysisEndPoint", upload.array("images"), async (req, res) => {
       if (!req.files || req.files.length === 0) {
         return res.status(400).send("No images uploaded.");
       }
-
+      let imageTOReturnToFrontEnd;
       const promises = req.files.map(async (file) => {
+        imageTOReturnToFrontEnd = file.buffer;
         try {
           const gptResult = await informationBackFromChatGPTAboutPhoto(
             file.buffer,
@@ -68,6 +69,8 @@ app.post("/AIAnalysisEndPoint", upload.array("images"), async (req, res) => {
 
           const fuzzyResults = await Promise.all(fuzzyLogicPromises);
 
+          console.log("this is the fuzzy logic", fuzzyResults);
+
           return {
             extractedTitles: titlesInPlainEnglishFormat,
             fuzzyMatches: fuzzyResults,
@@ -88,7 +91,10 @@ app.post("/AIAnalysisEndPoint", upload.array("images"), async (req, res) => {
           JSON.stringify(successfulResults, null, 2)
         );
 
-        res.json({ results: successfulResults });
+        res.json({
+          results: successfulResults,
+          imageKey: imageTOReturnToFrontEnd,
+        });
 
         console.log("this is the successful results", successfulResults);
       });
@@ -288,7 +294,7 @@ async function useFuzzyLogicToSearchRailWaysDatabaseForMatch_DVD(title) {
       // Convert the cleaned array of matches into a readable string for the UI
       valueGoingToTheUI = `
       <div class="match-container">
-        <p><strong>For title:</strong> "${title}", top matches:</p>
+        <p ><strong >For title:</strong>  <span class = "title-in-match-container">"${title}"</span>, top matches:</p>
         <ul class="match-list">
             ${likelyMatches
               .map(
