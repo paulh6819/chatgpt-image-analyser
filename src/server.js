@@ -99,66 +99,68 @@ app.post("/AIAnalysisEndPoint", upload.array("images"), async (req, res) => {
         console.log("this is the successful results", successfulResults);
       });
     } else if (queryType === "VHS") {
-      //this is where the logic for vhs query's go
-      console.log("vhs mode is enabled! Querying database...");
+      runTheVHSLogic(req, res);
 
-      //this is necessary because the prompt comes in array of all the promts, can be a source for bugs so I will need to dig in to this
-      const promptTextArray = req.body.prompt;
-      let promtForGPT = extractPrompt(promptTextArray);
-      console.log("this is the first console.log", promtForGPT);
+      // //this is where the logic for vhs query's go
+      // console.log("vhs mode is enabled! Querying database...");
 
-      if (!req.files || req.files.length === 0) {
-        return res.status(400).send("No images uploaded.");
-      }
+      // //this is necessary because the prompt comes in array of all the promts, can be a source for bugs so I will need to dig in to this
+      // const promptTextArray = req.body.prompt;
+      // let promtForGPT = extractPrompt(promptTextArray);
+      // console.log("this is the first console.log", promtForGPT);
 
-      const promises = req.files.map(async (file) => {
-        try {
-          const gptResult = await informationBackFromChatGPTAboutPhoto(
-            file.buffer,
-            promtForGPT
-          );
-          const rawContent = gptResult.message.content; // Get the JSON string
-          const titlesInJSONFromChatGPT = JSON.parse(rawContent); // Parse it into an object
-          const titlesInPlainEnglishFormat = titlesInJSONFromChatGPT.titles.map(
-            (title) => title
-          );
+      // if (!req.files || req.files.length === 0) {
+      //   return res.status(400).send("No images uploaded.");
+      // }
 
-          console.log(
-            "These are the extracted titles:",
-            titlesInPlainEnglishFormat
-          );
+      // const promises = req.files.map(async (file) => {
+      //   try {
+      //     const gptResult = await informationBackFromChatGPTAboutPhoto(
+      //       file.buffer,
+      //       promtForGPT
+      //     );
+      //     const rawContent = gptResult.message.content; // Get the JSON string
+      //     const titlesInJSONFromChatGPT = JSON.parse(rawContent); // Parse it into an object
+      //     const titlesInPlainEnglishFormat = titlesInJSONFromChatGPT.titles.map(
+      //       (title) => title
+      //     );
 
-          // Run PostgreSQL fuzzy logic for each title and collect results
-          const fuzzyLogicPromises = titlesInPlainEnglishFormat.map((title) =>
-            useFuzzyLogicToSearchRailWaysDatabaseForMatch_VHS(title)
-          );
+      //     console.log(
+      //       "These are the extracted titles:",
+      //       titlesInPlainEnglishFormat
+      //     );
 
-          const fuzzyResults = await Promise.all(fuzzyLogicPromises);
+      //     // Run PostgreSQL fuzzy logic for each title and collect results
+      //     const fuzzyLogicPromises = titlesInPlainEnglishFormat.map((title) =>
+      //       useFuzzyLogicToSearchRailWaysDatabaseForMatch_VHS(title)
+      //     );
 
-          return {
-            extractedTitles: titlesInPlainEnglishFormat,
-            fuzzyMatches: fuzzyResults,
-          };
-        } catch (error) {
-          console.error("Error processing image:", error);
-          return { error: "Failed to process image." };
-        }
-      });
-      Promise.allSettled(promises).then((results) => {
-        const successfulResults = results
-          .filter((result) => result.status === "fulfilled")
-          .map((result) => result.value);
+      //     const fuzzyResults = await Promise.all(fuzzyLogicPromises);
 
-        // console.log("Final result going to UI:", successfulResults);
-        console.log(
-          "Final resultof vhs going to UI:",
-          JSON.stringify(successfulResults, null, 2)
-        );
+      //     return {
+      //       extractedTitles: titlesInPlainEnglishFormat,
+      //       fuzzyMatches: fuzzyResults,
+      //     };
+      //   } catch (error) {
+      //     console.error("Error processing image:", error);
+      //     return { error: "Failed to process image." };
+      //   }
+      // });
+      // Promise.allSettled(promises).then((results) => {
+      //   const successfulResults = results
+      //     .filter((result) => result.status === "fulfilled")
+      //     .map((result) => result.value);
 
-        res.json({ results: successfulResults });
+      //   // console.log("Final result going to UI:", successfulResults);
+      //   console.log(
+      //     "Final resultof vhs going to UI:",
+      //     JSON.stringify(successfulResults, null, 2)
+      //   );
 
-        console.log("this is the successful results", successfulResults);
-      });
+      //   res.json({ results: successfulResults });
+
+      //   console.log("this is the successful results", successfulResults);
+      // });
     } else {
       //this is necessary because the prompt comes in array of all the promts, can be a source for bugs so I will need to dig in to this
       const promptTextArray = req.body.prompt;
@@ -382,4 +384,68 @@ function removeDuplicateTitle(title) {
   }
 
   return title; // If no duplication detected, return as-is
+}
+function runTheVHSLogic(req, res) {
+  console.log("VHS mode is enabled! Querying database...");
+
+  const promptTextArray = req.body.prompt;
+  let promtForGPT = extractPrompt(promptTextArray);
+  console.log("Prompt for VHS:", promtForGPT);
+
+  if (!req.files || req.files.length === 0) {
+    return res.status(400).send("No images uploaded.");
+  }
+
+  let imageTOReturnToFrontEnd;
+
+  const promises = req.files.map(async (file) => {
+    imageTOReturnToFrontEnd = file.buffer; // <-- attach one image (or could return multiple if you modify structure)
+
+    try {
+      const gptResult = await informationBackFromChatGPTAboutPhoto(
+        file.buffer,
+        promtForGPT
+      );
+
+      const rawContent = gptResult.message.content;
+      const titlesInJSONFromChatGPT = JSON.parse(rawContent);
+      const titlesInPlainEnglishFormat = titlesInJSONFromChatGPT.titles.map(
+        (title) => title
+      );
+
+      console.log("Extracted VHS Titles:", titlesInPlainEnglishFormat);
+
+      const fuzzyLogicPromises = titlesInPlainEnglishFormat.map((title) =>
+        useFuzzyLogicToSearchRailWaysDatabaseForMatch_VHS(title)
+      );
+
+      const fuzzyResults = await Promise.all(fuzzyLogicPromises);
+
+      return {
+        extractedTitles: titlesInPlainEnglishFormat,
+        fuzzyMatches: fuzzyResults,
+      };
+    } catch (error) {
+      console.error("Error processing VHS image:", error);
+      return { error: "Failed to process VHS image." };
+    }
+  });
+
+  Promise.allSettled(promises).then((results) => {
+    const successfulResults = results
+      .filter((result) => result.status === "fulfilled")
+      .map((result) => result.value);
+
+    console.log(
+      "Final VHS result going to UI:",
+      JSON.stringify(successfulResults, null, 2)
+    );
+
+    res.json({
+      results: successfulResults,
+      imageKey: imageTOReturnToFrontEnd,
+    });
+
+    console.log("this is the successful VHS results", successfulResults);
+  });
 }
