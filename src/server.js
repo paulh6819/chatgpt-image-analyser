@@ -346,15 +346,22 @@ async function useFuzzyLogicToSearchRailWaysDatabaseForMatch_VHS(title) {
       console.log(`For title "${title}", top matches:`, likelyMatches);
       valueGoingToTheUI = `For title "${title}", top matches:, ${likelyMatches}`;
 
-      // Convert the array of matches into a readable string for the UI
-      valueGoingToTheUI =
-        `For title "${title}", top matches:\n` +
-        likelyMatches
-          .map(
-            (match, index) =>
-              `${index + 1}. ${match.title} (Price: ${match.price})`
-          )
-          .join("\n"); // This properly formats the array into a string
+      // Convert the cleaned array of matches into a readable string for the UI
+      valueGoingToTheUI = `
+   <div class="match-container">
+     <p ><strong >For title:</strong>  <span class = "title-in-match-container">"${title}"</span>, top matches:</p>
+     <ul class="match-list">
+         ${likelyMatches
+           .map(
+             (match, index) =>
+               `<li class="match-item">
+                   <strong>${index + 1}. ${match.title}</strong> 
+                   <span class="price">(Price: ${match.price})</span>
+                </li>`
+           )
+           .join("")}
+     </ul>
+ </div>`;
 
       console.log("this is the value going to the UI", valueGoingToTheUI);
     } else {
