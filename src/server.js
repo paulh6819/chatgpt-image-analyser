@@ -163,6 +163,8 @@ app.post("/AIAnalysisEndPoint", upload.array("images"), async (req, res) => {
       // });
     } else if (queryType === "CASSETTE") {
       runTheCassetteLogic(req, res);
+    } else if (queryType === "CD") {
+      runTheCDLogic(req, res);
     } else {
       //this is necessary because the prompt comes in array of all the promts, can be a source for bugs so I will need to dig in to this
       const promptTextArray = req.body.prompt;
@@ -424,6 +426,54 @@ async function useFuzzyLogicToSearchRailWaysDatabaseForMatch_CASSETTE(title) {
 
   return valueGoingToTheUI;
 }
+async function useFuzzyLogicToSearchRailWaysDatabaseForMatch_CD(title) {
+  let returnedMostLikelyTitle = null;
+  let returnedPriceOfLikelyTitle = null;
+  let valueGoingToTheUI = `No close matches found for: ${title}`;
+  let likelyMatches = [];
+
+  try {
+    const result = await pool.query(
+      `SELECT title, price
+       FROM cd_items
+       WHERE similarity(title, $1) > 0.4
+       ORDER BY similarity(title, $1) DESC
+       LIMIT 3`,
+      [title]
+    );
+
+    if (result.rows.length > 0) {
+      likelyMatches = result.rows.map((row, index) => ({
+        title: row.title,
+        price: row.price,
+      }));
+
+      console.log(`For title "${title}", top matches:`, likelyMatches);
+
+      valueGoingToTheUI = `
+      <div class="match-container">
+        <p><strong>For title:</strong> <span class="title-in-match-container">"${title}"</span>, top matches:</p>
+        <ul class="match-list">
+          ${likelyMatches
+            .map(
+              (match, index) =>
+                `<li class="match-item">
+                   <strong>${index + 1}. ${match.title}</strong> 
+                   <span class="price">(Price: ${match.price})</span>
+                 </li>`
+            )
+            .join("")}
+        </ul>
+      </div>`;
+    } else {
+      console.log("No close matches found for:", title);
+    }
+  } catch (error) {
+    console.error("Database query failed:", error);
+  }
+
+  return valueGoingToTheUI;
+}
 
 function removeDuplicateTitle(title) {
   const words = title.split(" ");
@@ -571,5 +621,70 @@ function runTheCassetteLogic(req, res) {
     });
 
     console.log("This is the successful Cassette result:", successfulResults);
+  });
+}
+
+function runTheCDLogic(req, res) {
+  console.log("CD mode is enabled! Querying database...");
+
+  const promptTextArray = req.body.prompt;
+  let promtForGPT = extractPrompt(promptTextArray);
+  console.log("Prompt for CD:", promtForGPT);
+
+  if (!req.files || req.files.length === 0) {
+    return res.status(400).send("No images uploaded.");
+  }
+
+  let imageTOReturnToFrontEnd;
+
+  const promises = req.files.map(async (file) => {
+    imageTOReturnToFrontEnd = file.buffer;
+
+    try {
+      const gptResult = await informationBackFromChatGPTAboutPhoto(
+        file.buffer,
+        promtForGPT
+      );
+
+      const rawContent = gptResult.message.content;
+      const titlesInJSONFromChatGPT = JSON.parse(rawContent);
+      const titlesInPlainEnglishFormat = titlesInJSONFromChatGPT.titles.map(
+        (title) => title
+      );
+
+      console.log("Extracted CD Titles:", titlesInPlainEnglishFormat);
+
+      const fuzzyLogicPromises = titlesInPlainEnglishFormat.map((title) =>
+        useFuzzyLogicToSearchRailWaysDatabaseForMatch_CD(title)
+      );
+
+      const fuzzyResults = await Promise.all(fuzzyLogicPromises);
+
+      return {
+        extractedTitles: titlesInPlainEnglishFormat,
+        fuzzyMatches: fuzzyResults,
+      };
+    } catch (error) {
+      console.error("Error processing CD image:", error);
+      return { error: "Failed to process CD image." };
+    }
+  });
+
+  Promise.allSettled(promises).then((results) => {
+    const successfulResults = results
+      .filter((result) => result.status === "fulfilled")
+      .map((result) => result.value);
+
+    console.log(
+      "Final CD result going to UI:",
+      JSON.stringify(successfulResults, null, 2)
+    );
+
+    res.json({
+      results: successfulResults,
+      imageKey: imageTOReturnToFrontEnd,
+    });
+
+    console.log("this is the successful CD results", successfulResults);
   });
 }
