@@ -325,7 +325,7 @@ async function useFuzzyLogicToSearchRailWaysDatabaseForMatch_DVD(title) {
   return valueGoingToTheUI;
 }
 
-async function useFuzzyLogicToSearchRailWaysDatabaseForMatch_VHS(title) {
+async function useFuzzyLogicToSearchRailWaysDatabaseForMatch_VHS(title, img) {
   let returnedMostLikelyTitle = null;
   let returnedPriceOfLikelyTitle = null;
   let valueGoingToTheUI = `No close matches found for: ${title}`;
@@ -335,7 +335,7 @@ async function useFuzzyLogicToSearchRailWaysDatabaseForMatch_VHS(title) {
     const result = await pool.query(
       `SELECT title, price
        FROM vhs_tapes
-       WHERE similarity(title, $1) > 0.4
+       WHERE similarity(title, $1) > 0.3
        ORDER BY similarity(title, $1) DESC
        LIMIT 3`,
       [title] // Pass the user-provided title safely
@@ -367,7 +367,20 @@ async function useFuzzyLogicToSearchRailWaysDatabaseForMatch_VHS(title) {
      </ul>
  </div>`;
 
-      console.log("this is the value going to the UI", valueGoingToTheUI);
+      // console.log("this is the value going to the UI", valueGoingToTheUI);
+      // const promptForAskingAboutPotentialMatch = `The following is a fuzzy logic search of a database of VHS titles. Your Job is determine if these
+      // possible matches are indeed likely real life matches. Respond with "true" if any of them are, respond with "false" if these fuzzy logic matches
+      // are a false positive. - ${valueGoingToTheUI}
+      // `;
+      // askChatGPTIfMatchIsReal(promptForAskingAboutPotentialMatch);
+      // const promptForAskingAboutPotentialMatchWithPhoto = `The following is a fuzzy logic search of a database of VHS titles. Your Job is determine if these
+      // possible matches are indeed likely real life matches. Respond with "true" if any of them are, respond with "false" if these fuzzy logic matches
+      // are a false positive. Refer to photo for extra help - ${valueGoingToTheUI}
+      // `;
+      // askChatGPTIfMatchIsRealWithPhoto(
+      //   img,
+      //   promptForAskingAboutPotentialMatchWithPhoto
+      // );
     } else {
       console.log("No close matches found for:", title);
     }
@@ -494,7 +507,7 @@ function removeDuplicateTitle(title) {
 
   return title; // If no duplication detected, return as-is
 }
-function runTheVHSLogic(req, res) {
+function runTheVHSLogic(req, res, img) {
   console.log("VHS mode is enabled! Querying database...");
 
   const promptTextArray = req.body.prompt;
@@ -525,7 +538,7 @@ function runTheVHSLogic(req, res) {
       console.log("Extracted VHS Titles:", titlesInPlainEnglishFormat);
 
       const fuzzyLogicPromises = titlesInPlainEnglishFormat.map((title) =>
-        useFuzzyLogicToSearchRailWaysDatabaseForMatch_VHS(title)
+        useFuzzyLogicToSearchRailWaysDatabaseForMatch_VHS(title, file.buffer)
       );
 
       const fuzzyResults = await Promise.all(fuzzyLogicPromises);
@@ -687,4 +700,63 @@ function runTheCDLogic(req, res) {
 
     console.log("this is the successful CD results", successfulResults);
   });
+}
+
+async function askChatGPTIfMatchIsReal(promptForAskingAboutPotentialMatch) {
+  // const base64Image = Buffer.from(img).toString("base64");
+
+  const response = await openai.chat.completions.create({
+    model: "gpt-4o",
+    messages: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: ` ${promptForAskingAboutPotentialMatch}`,
+          },
+        ],
+      },
+    ],
+  });
+  console.log(
+    "here is chat GPTs response to asking about the match",
+    response.choices[0].message.content
+  );
+
+  return response.choices[0];
+}
+
+async function askChatGPTIfMatchIsRealWithPhoto(
+  img,
+  promptForAskingAboutPotentialMatch
+) {
+  const base64Image = Buffer.from(img).toString("base64");
+
+  const response = await openai.chat.completions.create({
+    model: "gpt-4o",
+    messages: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: ` ${promptForAskingAboutPotentialMatch}`,
+          },
+          {
+            type: "image_url",
+            image_url: {
+              url: `data:image/jpeg;base64,${base64Image}`,
+            },
+          },
+        ],
+      },
+    ],
+  });
+  console.log(
+    "here is chat GPTs response to asking about the match with regards to the photo",
+    response.choices[0].message.content
+  );
+
+  return response.choices[0];
 }
