@@ -249,6 +249,8 @@ function extractPrompt(itemToTest) {
 }
 
 async function useFuzzyLogicToSearchRailWaysDatabaseForMatch_DVD(title, req) {
+  console.log("fuzzyLogicSearchStrenth", req.query.fuzzyLogicSearchStrenth);
+  const fuzzyLogicStrength = req.query.fuzzyLogicSearchStrenth;
   let returnedMostLikelyTitle = null;
   let returnedPriceOfLikelyTitle = null;
   let valueGoingToTheUI = `No close matches found for: ${title}`;
@@ -258,7 +260,7 @@ async function useFuzzyLogicToSearchRailWaysDatabaseForMatch_DVD(title, req) {
     const result = await pool.query(
       `SELECT title, price
        FROM dvds
-       WHERE similarity(title, $1) > 0.4
+       WHERE similarity(title, $1) > 0.${fuzzyLogicStrength}
        ORDER BY similarity(title, $1) DESC
        LIMIT 3`,
       [title] // Pass the user-provided title safely
