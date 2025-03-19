@@ -64,7 +64,7 @@ app.post("/AIAnalysisEndPoint", upload.array("images"), async (req, res) => {
 
           // Run PostgreSQL fuzzy logic for each title and collect results
           const fuzzyLogicPromises = titlesInPlainEnglishFormat.map((title) =>
-            useFuzzyLogicToSearchRailWaysDatabaseForMatch_DVD(title)
+            useFuzzyLogicToSearchRailWaysDatabaseForMatch_DVD(title, req)
           );
 
           const fuzzyResults = await Promise.all(fuzzyLogicPromises);
@@ -100,7 +100,7 @@ app.post("/AIAnalysisEndPoint", upload.array("images"), async (req, res) => {
       });
     } else if (queryType === "VHS") {
       runTheVHSLogic(req, res);
-
+      7;
       // //this is where the logic for vhs query's go
       // console.log("vhs mode is enabled! Querying database...");
 
@@ -248,7 +248,7 @@ function extractPrompt(itemToTest) {
   }
 }
 
-async function useFuzzyLogicToSearchRailWaysDatabaseForMatch_DVD(title) {
+async function useFuzzyLogicToSearchRailWaysDatabaseForMatch_DVD(title, req) {
   let returnedMostLikelyTitle = null;
   let returnedPriceOfLikelyTitle = null;
   let valueGoingToTheUI = `No close matches found for: ${title}`;
@@ -269,23 +269,30 @@ async function useFuzzyLogicToSearchRailWaysDatabaseForMatch_DVD(title) {
         title: row.title,
         price: row.price,
       }));
+      const summaryForChatGpt = createReadableMatchSummaryForChatGPT(
+        title,
+        likelyMatches
+      );
+      console.log("here is the chatGPT summary", summaryForChatGpt);
 
-      // console.log(
-      //   `For title (duplicate) "${title}", top matches:`,
-      //   likelyMatches
-      // );
-      // console.log(
-      //   "\n",
-      //   `testing first  top matche title fixing:`,
-      //   removeDuplicateTitle(likelyMatches[0].title)
-      // );
+      console.log(`For title "${title}", top matches:`, likelyMatches);
+      // valueGoingToTheUI = `For title "${title}", top matches:, ${likelyMatches}`;
+      let turnBoxGreenBecauseChatGPTThinksThereIsAMatch;
+      // console.log("this is the value going to the UI", valueGoingToTheUI);
+      const promptForAskingAboutPotentialMatch = `The following is a fuzzy logic search of a database of VHS titles. Your Job is determine if these
+            // possible matches are indeed likely real life matches. Respond with "true" if any of them are, respond with "false" if these fuzzy logic matches
+            // are a false positive. Erorr on the side of caution towards it being a match.  No other words of explantion are wanted - ${summaryForChatGpt}
+            // `;
+      console.log(
+        "this is the toggle switch off the req-",
+        req.query.extraAnalysis
+      );
+
       console.log(
         "\n",
         `testing first  top matche WITHOUT the fixing:`,
         likelyMatches[0].title
       );
-
-      //valueGoingToTheUI = `For title "${title}",--------> top matches:, ${likelyMatches}`;
 
       // Clean up all titles in likelyMatches BEFORE using them in .map()
       likelyMatches.forEach((match) => {
@@ -297,9 +304,40 @@ async function useFuzzyLogicToSearchRailWaysDatabaseForMatch_DVD(title) {
         removeDuplicateTitle(likelyMatches[1].title)
       );
 
+      //new extra analysis logic here---> below
+      if (req.query.extraAnalysis === "true") {
+        console.log(
+          "this is insidee the extraAnalysis if then",
+          promptForAskingAboutPotentialMatch
+        );
+        // Wrap the logic in an async IIFE to ensure await works correctly
+        const matchResult = await askChatGPTIfMatchIsReal(
+          promptForAskingAboutPotentialMatch
+        );
+        console.log("Match result from GPT:", matchResult);
+        turnBoxGreenBecauseChatGPTThinksThereIsAMatch = matchResult
+          .toString()
+          .trim()
+          .toLowerCase();
+      }
+
+      // Convert the cleaned array of matches into a readable string for the UI
+      let colorForBackgroudOfDiv = "pink";
+      console.log(
+        "this is chatGPTs resopnse right before the turn green if then ",
+        turnBoxGreenBecauseChatGPTThinksThereIsAMatch
+      );
+      if (
+        turnBoxGreenBecauseChatGPTThinksThereIsAMatch === "true" ||
+        turnBoxGreenBecauseChatGPTThinksThereIsAMatch === "True"
+      ) {
+        console.log("checking color", colorForBackgroudOfDiv);
+        colorForBackgroudOfDiv = "lightgreen";
+      }
+
       // Convert the cleaned array of matches into a readable string for the UI
       valueGoingToTheUI = `
-      <div class="match-container">
+      <div class="match-container" style="background-color:${colorForBackgroudOfDiv}">
         <p ><strong >For title:</strong>  <span class = "title-in-match-container">"${title}"</span>, top matches:</p>
         <ul class="match-list">
             ${likelyMatches
@@ -355,7 +393,7 @@ async function useFuzzyLogicToSearchRailWaysDatabaseForMatch_VHS(
         title,
         likelyMatches
       );
-      console.log("here is the chatGPT summary", summaryForChatGpt);
+      console.log("here is the chatGPT summary in the dvd", summaryForChatGpt);
 
       console.log(`For title "${title}", top matches:`, likelyMatches);
       valueGoingToTheUI = `For title "${title}", top matches:, ${likelyMatches}`;
